@@ -1,0 +1,345 @@
+import os
+import json
+import csv
+import requests
+import matplotlib.pyplot as plt
+
+recetas = []  
+
+def anadir_receta():
+    nombre = input("Introduce el nombre de la receta: ").strip()
+    if not nombre:
+        print("El nombre no puede estar vacío.")
+        return
+
+    print("Introduce los ingredientes separados por comas (en ingles ej: eggs, milk, flour):")
+    ingredientes_str = input("> ").strip()
+    if not ingredientes_str:
+        print("Debes introducir al menos un ingrediente.")
+        return
+
+    ingredientes = [ing.strip() for ing in ingredientes_str.split(",") if ing.strip()]
+    receta = {
+        "nombre": nombre,
+        "ingredientes": ingredientes
+    }
+    recetas.append(receta)
+    print(f"Receta '{nombre}' añadida correctamente.")
+
+
+def listar_recetas():
+    if not recetas:
+        print("No hay recetas guardadas.")
+        return
+
+    print("\n--- LISTA DE RECETAS ---")
+    for i, receta in enumerate(recetas, start=1):
+        print(f"{i}. {receta['nombre']} ({len(receta['ingredientes'])} ingredientes)")
+        print("   Ingredientes:", ", ".join(receta["ingredientes"]))
+    print("------------------------\n")
+
+
+def exportar_json(ruta):
+    try:
+        with open(ruta, "w", encoding="utf-8") as f:
+            json.dump(recetas, f, ensure_ascii=False, indent=4)
+        print(f"Recetas exportadas a JSON en '{ruta}'.")
+    except Exception as e:
+        print("Error al exportar a JSON:", e)
+
+
+def importar_json(ruta):
+    global recetas
+    try:
+        with open(ruta, "r", encoding="utf-8") as f:
+            datos = json.load(f)
+        if isinstance(datos, list):
+            recetas = datos
+            print(f"Recetas importadas desde JSON '{ruta}'.")
+        else:
+            print("Formato JSON incorrecto (se esperaba una lista).")
+    except FileNotFoundError:
+        print("Archivo JSON no encontrado.")
+    except json.JSONDecodeError:
+        print("Error: el archivo JSON tiene un formato incorrecto.")
+    except Exception as e:
+        print("Error al importar JSON:", e)
+
+
+def exportar_csv(ruta):
+    try:
+        with open(ruta, "w", encoding="utf-8", newline="") as f:
+            writer = csv.writer(f, delimiter=";")
+            writer.writerow(["nombre", "ingredientes"])
+            for receta in recetas:
+                ingredientes_str = ",".join(receta["ingredientes"])
+                writer.writerow([receta["nombre"], ingredientes_str])
+        print(f"Recetas exportadas a CSV en '{ruta}'.")
+    except Exception as e:
+        print("Error al exportar a CSV:", e)
+
+
+def importar_csv(ruta):
+    global recetas
+    try:
+        nuevas_recetas = []
+        with open(ruta, "r", encoding="utf-8") as f:
+            reader = csv.DictReader(f, delimiter=";")
+            for fila in reader:
+                nombre = fila.get("nombre", "").strip()
+                ingredientes_str = fila.get("ingredientes", "")
+                ingredientes = [ing.strip() for ing in ingredientes_str.split(",") if ing.strip()]
+                if nombre:
+                    nuevas_recetas.append({"nombre": nombre, "ingredientes": ingredientes})
+        recetas = nuevas_recetas
+        print(f"Recetas importadas desde CSV '{ruta}'.")
+    except FileNotFoundError:
+        print("Archivo CSV no encontrado.")
+    except Exception as e:
+        print("Error al importar CSV:", e)
+
+
+def exportar_txt(ruta):
+    try:
+        with open(ruta, "w", encoding="utf-8") as f:
+            for receta in recetas:
+                f.write(f"Nombre: {receta['nombre']}\n")
+                f.write("Ingredientes:\n")
+                for ing in receta["ingredientes"]:
+                    f.write(f"- {ing}\n")
+                f.write("\n")
+        print(f"Recetas exportadas a TXT en '{ruta}'.")
+    except Exception as e:
+        print("Error al exportar a TXT:", e)
+
+
+def importar_txt(ruta):
+    """
+    Formato esperado:
+    Nombre: Tortilla
+    Ingredientes:
+    - huevo
+    - patata
+
+    Nombre: Otra receta
+    ...
+    """
+    global recetas
+    try:
+        nuevas_recetas = []
+        if not os.path.exists(ruta):
+            raise FileNotFoundError
+
+        with open(ruta, "r", encoding="utf-8") as f:
+            lineas = [l.rstrip("\n") for l in f]
+
+        nombre = None
+        ingredientes = []
+        i = 0
+        while i < len(lineas):
+            linea = lineas[i]
+            if linea.startswith("Nombre:"):
+
+                if nombre is not None:
+                    nuevas_recetas.append({"nombre": nombre, "ingredientes": ingredientes})
+                nombre = linea.replace("Nombre:", "").strip()
+                ingredientes = []
+                i += 1
+            elif linea.startswith("Ingredientes:"):
+                i += 1
+                while i < len(lineas) and lineas[i].startswith("-"):
+                    ing = lineas[i].replace("-", "").strip()
+                    if ing:
+                        ingredientes.append(ing)
+                    i += 1
+            else:
+                i += 1
+
+        if nombre is not None:
+            nuevas_recetas.append({"nombre": nombre, "ingredientes": ingredientes})
+
+        if nuevas_recetas:
+            recetas = nuevas_recetas
+            print(f"Recetas importadas desde TXT '{ruta}'.")
+        else:
+            print("No se encontraron recetas en el TXT (¿formato incorrecto?).")
+
+    except FileNotFoundError:
+        print("Archivo TXT no encontrado.")
+    except Exception as e:
+        print("Error al importar TXT:", e)
+
+
+def menu_exportar_importar():
+    while True:
+        print("\n--- EXPORTAR / IMPORTAR ---")
+        print("1. Exportar a JSON")
+        print("2. Importar desde JSON")
+        print("3. Exportar a CSV")
+        print("4. Importar desde CSV")
+        print("5. Exportar a TXT")
+        print("6. Importar desde TXT")
+        print("7. Volver al menú principal")
+        opcion = input("Elige una opción: ").strip()
+
+        if opcion == "1":
+            ruta = input("Ruta del archivo JSON a crear (ej: recetas.json): ").strip()
+            exportar_json(ruta)
+        elif opcion == "2":
+            ruta = input("Ruta del archivo JSON a leer: ").strip()
+            importar_json(ruta)
+        elif opcion == "3":
+            ruta = input("Ruta del archivo CSV a crear (ej: recetas.csv): ").strip()
+            exportar_csv(ruta)
+        elif opcion == "4":
+            ruta = input("Ruta del archivo CSV a leer: ").strip()
+            importar_csv(ruta)
+        elif opcion == "5":
+            ruta = input("Ruta del archivo TXT a crear (ej: recetas.txt): ").strip()
+            exportar_txt(ruta)
+        elif opcion == "6":
+            ruta = input("Ruta del archivo TXT a leer: ").strip()
+            importar_txt(ruta)
+        elif opcion == "7":
+            break
+        else:
+            print("Opción no válida.")
+
+BASE_URL = "https://www.themealdb.com/api/json/v1/1/filter.php"  
+LOOKUP_URL = "https://www.themealdb.com/api/json/v1/1/lookup.php"  
+
+
+def buscar_recetas_online():
+    ingrediente = input("Introduce un ingrediente para buscar en la API (en inglés, ej: chicken, beef, rice): ").strip()
+    if not ingrediente:
+        print("Debes introducir un ingrediente.")
+        return
+
+    params = {"i": ingrediente}
+    try:
+        resp = requests.get(BASE_URL, params=params, timeout=10)
+        resp.raise_for_status()
+        datos = resp.json()
+    except requests.exceptions.RequestException as e:
+        print("Error en la petición a la API:", e)
+        return
+    except ValueError:
+        print("Error al interpretar la respuesta de la API.")
+        return
+
+    meals = datos.get("meals")
+    if not meals:
+        print("No se encontraron recetas con ese ingrediente.")
+        return
+
+    print("\n--- RESULTADOS DE LA API ---")
+    for i, meal in enumerate(meals, start=1):
+        print(f"{i}. {meal.get('strMeal')} (ID: {meal.get('idMeal')})")
+
+    print("----------------------------")
+    eleccion = input("Introduce el número de la receta que quieres añadir (o pulsa Enter para cancelar): ").strip()
+    if not eleccion:
+        return
+
+    try:
+        idx = int(eleccion) - 1
+        if idx < 0 or idx >= len(meals):
+            print("Número fuera de rango.")
+            return
+    except ValueError:
+        print("Debes introducir un número.")
+        return
+
+    meal_id = meals[idx].get("idMeal")
+    try:
+        resp_detalle = requests.get(LOOKUP_URL, params={"i": meal_id}, timeout=10)
+        resp_detalle.raise_for_status()
+        datos_detalle = resp_detalle.json()
+    except requests.exceptions.RequestException as e:
+        print("Error al obtener detalles de la receta:", e)
+        return
+    except ValueError:
+        print("Error al interpretar los detalles de la receta.")
+        return
+
+    detalle_meal = datos_detalle.get("meals", [None])[0]
+    if not detalle_meal:
+        print("No se pudieron obtener los detalles de la receta.")
+        return
+
+    nombre = detalle_meal.get("strMeal", "Receta sin nombre")
+    ingredientes = []
+    for i in range(1, 21):
+        ing = detalle_meal.get(f"strIngredient{i}")
+        if ing and ing.strip():
+            ingredientes.append(ing.strip())
+
+    receta = {
+        "nombre": nombre,
+        "ingredientes": ingredientes
+    }
+    recetas.append(receta)
+    print(f"Receta '{nombre}' añadida desde la API.")
+
+def ver_estadisticas():
+    if not recetas:
+        print("No hay recetas para mostrar estadísticas.")
+        return
+
+    nombres = [r["nombre"] for r in recetas]
+    num_ingredientes = [len(r["ingredientes"]) for r in recetas]
+
+    plt.figure(figsize=(10, 4))
+    plt.subplot(1, 2, 1)
+    plt.bar(range(len(recetas)), num_ingredientes)
+    plt.xticks(range(len(recetas)), nombres, rotation=45, ha="right")
+    plt.title("Número de ingredientes por receta")
+    plt.ylabel("Ingredientes")
+
+    contador = {}
+    for r in recetas:
+        for ing in r["ingredientes"]:
+            ing_lower = ing.lower()
+            contador[ing_lower] = contador.get(ing_lower, 0) + 1
+
+    ingredientes_unicos = list(contador.keys())
+    frecuencias = list(contador.values())
+
+    plt.subplot(1, 2, 2)
+    plt.pie(frecuencias, labels=ingredientes_unicos, autopct="%1.1f%%")
+    plt.title("Ingredientes más comunes")
+
+    plt.tight_layout()
+    plt.show()
+
+
+def menu_principal():
+    while True:
+        print("\n===== GESTOR DE RECETAS =====")
+        print("a. Añadir receta")
+        print("b. Listar recetas")
+        print("c. Exportar/Importar (TXT, CSV, JSON)")
+        print("d. Buscar recetas online (API)")
+        print("e. Ver estadísticas (gráficos)")
+        print("f. Salir")
+        opcion = input("Elige una opción: ").strip().lower()
+
+        if opcion == "a":
+            anadir_receta()
+        elif opcion == "b":
+            listar_recetas()
+        elif opcion == "c":
+            menu_exportar_importar()
+        elif opcion == "d":
+            buscar_recetas_online()
+        elif opcion == "e":
+            ver_estadisticas()
+        elif opcion == "f":
+            print("Saliendo del programa...")
+            break
+        else:
+            print("Opción no válida, intenta de nuevo.")
+
+
+if __name__ == "__main__":
+    menu_principal()
